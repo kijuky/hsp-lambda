@@ -1,0 +1,165 @@
+version: '3'
+
+dotenv: ['.env']
+
+vars:
+  IMAGE_NAME: echo-lambda-hsp
+  HSP_SOURCE_NAME: sample
+  EVENT_FILE: sample.json
+  AWS_LAMBDA_FUNCTION_NAME: echo-lambda-hsp
+  AWS_ECR_REPO_NAME: echo-lambda-hsp
+  AWS_IAM_ROLE_NAME: lambda-execute-hsp
+  AWS_ECR_IMAGE_URI: "{{.AWS_ACCOUNT_ID}}.dkr.ecr.{{.AWS_REGION}}.amazonaws.com/{{.IMAGE_NAME}}:latest"
+  AWS_IAM_ROLE_ARN: "arn:aws:iam::{{.AWS_ACCOUNT_ID}}:role/{{.AWS_IAM_ROLE_NAME}}"
+
+tasks:
+  build:
+    desc: Build the HSP Lambda Docker image
+    cmds:
+      - echo "Compiling {{.HSP_SOURCE_NAME}}.hsp into {{.HSP_SOURCE_NAME}}.ax..."
+      - DOCKER_BUILDKIT=0 docker build --platform linux/arm64 --no-cache --build-arg HSP_SOURCE_NAME={{.HSP_SOURCE_NAME}} -t {{.IMAGE_NAME}} .
+
+  install-rie:
+    desc: Install AWS Lambda Runtime Interface Emulator (RIE)
+    cmds:
+      - curl -Lo aws-lambda-rie https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie
+      - chmod +x aws-lambda-rie
+
+  run:
+    desc: Run the Docker image with test input
+    cmds:
+      - docker run --rm -p 9000:8080 -v $(pwd)/aws-lambda-rie:/aws-lambda-rie --entrypoint="/aws-lambda-rie" {{.IMAGE_NAME}} /var/runtime/bootstrap
+
+  clean:
+    desc: Remove the Docker image
+    cmds:
+      - docker rmi {{.IMAGE_NAME}} || true
+
+  rebuild:
+    desc: Clean and rebuild the image
+    cmds:
+      - task: clean
+      - task: build
+
+  create-iam-role:
+    desc: Create IAM role for Lambda with basic execution and ECR pull permissions
+    cmds:
+      - |
+        aws iam create-role \
+          --role-name {{.AWS_IAM_ROLE_NAME}} \
+          --assume-role-policy-document file://trust-policy.json \
+          --region {{.AWS_REGION}} \
+          --profile {{.AWS_PROFILE}} || true
+      - |
+        aws iam attach-role-policy \
+          --role-name {{.AWS_IAM_ROLE_NAME}} \
+          --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole \
+          --region {{.AWS_REGION}} \
+          --profile {{.AWS_PROFILE}} || true
+      - |
+        aws iam attach-role-policy \
+          --role-name {{.AWS_IAM_ROLE_NAME}} \
+          --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly \
+          --region {{.AWS_REGION}} \
+          --profile {{.AWS_PROFILE}} || true
+
+  create-ecr-repo:
+    desc: Create an ECR repository for the Lambda image
+    cmds:
+      - |
+        aws ecr create-repository \
+          --repository-name {{.AWS_ECR_REPO_NAME}} \
+          --region {{.AWS_REGION}} \
+          --profile {{.AWS_PROFILE}} || true
+
+  ecr-login:
+    desc: Log in to ECR
+    cmds:
+      - |
+        aws ecr get-login-password --region {{.AWS_REGION}} --profile {{.AWS_PROFILE}} | \
+        docker login --username AWS --password-stdin {{.AWS_ACCOUNT_ID}}.dkr.ecr.{{.AWS_REGION}}.amazonaws.com
+
+  push-image:
+    desc: Build and push image to ECR
+    deps: [ecr-login]
+    cmds:
+      - docker tag {{.IMAGE_NAME}} {{.AWS_ECR_IMAGE_URI}}
+      - docker push {{.AWS_ECR_IMAGE_URI}}
+
+  deploy-lambda:
+    desc: Create or update Lambda function from ECR image
+    cmds:
+      - |
+        aws lambda get-function \
+          --function-name {{.AWS_LAMBDA_FUNCTION_NAME}} \
+          --region {{.AWS_REGION}} \
+          --profile {{.AWS_PROFILE}} && \
+        echo "Updating existing Lambda function..." && \
+        aws lambda update-function-code \
+          --function-name {{.AWS_LAMBDA_FUNCTION_NAME}} \
+          --image-uri {{.AWS_ECR_IMAGE_URI}} \
+          --region {{.AWS_REGION}} \
+          --profile {{.AWS_PROFILE}} || \
+        (echo "Creating new Lambda function..." && \
+        aws lambda create-function \
+          --function-name {{.AWS_LAMBDA_FUNCTION_NAME}} \
+          --package-type Image \
+          --code ImageUri={{.AWS_ECR_IMAGE_URI}} \
+          --architectures arm64 \
+          --role {{.AWS_IAM_ROLE_ARN}} \
+          --region {{.AWS_REGION}} \
+          --profile {{.AWS_PROFILE}})
+
+  delete-lambda:
+    desc: Delete the Lambda function
+    cmds:
+      - |
+        aws lambda delete-function \
+        --function-name {{.AWS_LAMBDA_FUNCTION_NAME}} \
+        --region {{.AWS_REGION}} \
+        --profile {{.AWS_PROFILE}} || echo "Lambda not found"
+
+  delete-ecr:
+    desc: Delete the ECR repository (and all images)
+    cmds:
+      - |
+        aws ecr delete-repository \
+        --repository-name {{.AWS_ECR_REPO_NAME}} \
+        --region {{.AWS_REGION}} \
+        --force \
+        --profile {{.AWS_PROFILE}} || echo "ECR repo not found"
+
+  delete-role:
+    desc: Delete the IAM role (assumes no attached policies)
+    cmds:
+      - |
+        aws iam detach-role-policy \
+        --role-name {{.AWS_IAM_ROLE_NAME}} \
+        --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole \
+        --profile {{.AWS_PROFILE}} || echo "Policy not attached"
+      - |
+        aws iam detach-role-policy \
+        --role-name {{.AWS_IAM_ROLE_NAME}} \
+        --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly \
+        --profile {{.AWS_PROFILE}} || echo "Policy not attached"
+      - |
+        aws iam delete-role \
+        --role-name {{.AWS_IAM_ROLE_NAME}} \
+        --profile {{.AWS_PROFILE}} || echo "IAM role not found"
+
+  delete-logs:
+    desc: Delete CloudWatch log group for the Lambda function
+    cmds:
+      - |
+        aws logs delete-log-group \
+        --log-group-name /aws/lambda/{{.AWS_LAMBDA_FUNCTION_NAME}} \
+        --region {{.AWS_REGION}} \
+        --profile {{.AWS_PROFILE}} || echo "Log group not found"
+
+  cleanup-all:
+    desc: Delete all AWS resources (Lambda, ECR, IAM, Logs)
+    deps:
+      - delete-lambda
+      - delete-ecr
+      - delete-role
+      - delete-logs
