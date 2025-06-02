@@ -1,4 +1,4 @@
-FROM --platform=linux/arm64 ghcr.io/kijuky/hsp:3.7beta10
+FROM --platform=linux/arm64 ghcr.io/kijuky/hsp:3.7beta10-nogpiod
 
 ENV LAMBDA_RUNTIME_DIR=/var/runtime \
     LAMBDA_TASK_ROOT=/var/task
