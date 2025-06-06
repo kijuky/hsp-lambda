@@ -1,16 +1,18 @@
-FROM --platform=linux/arm64 ghcr.io/kijuky/hsp:3.7beta10-nogpiod
+FROM --platform=linux/arm64 ghcr.io/kijuky/hsp:3.7beta10-al2 AS build
 
-ENV LAMBDA_RUNTIME_DIR=/var/runtime \
-    LAMBDA_TASK_ROOT=/var/task
-
-# HSPソースコードのビルド
-WORKDIR ${LAMBDA_TASK_ROOT}
+# ソースコードのビルド
 ARG HSP_SOURCE_NAME=sample
 ENV HSP_SOURCE_NAME=${HSP_SOURCE_NAME}
 COPY ${HSP_SOURCE_NAME}.hsp ./
 RUN hspcmp --compath=/OpenHSP-3.7beta10/common/ -d -i -u ${HSP_SOURCE_NAME}.hsp
 
-# bootstrapの起動
-COPY bootstrap ${LAMBDA_RUNTIME_DIR}/bootstrap
-RUN chmod +x ${LAMBDA_RUNTIME_DIR}/bootstrap
-ENTRYPOINT ["/var/runtime/bootstrap"]
+FROM --platform=linux/arm64 ghcr.io/kijuky/hsp:3.7beta10-lambda AS runtime
+
+# axファイルのコピー
+ARG HSP_SOURCE_NAME=sample
+ENV HSP_SOURCE_NAME=${HSP_SOURCE_NAME}
+COPY --from=build /hsp3.7beta10/${HSP_SOURCE_NAME}.ax /var/task/start.ax
+
+# デバッグ（lambdaに渡されたリクエストと、hspが出力したレスポンスを表示する）
+COPY bootstrap /var/runtime/bootstrap
+RUN chmod +x /var/runtime/bootstrap

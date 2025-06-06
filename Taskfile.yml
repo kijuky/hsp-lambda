@@ -19,16 +19,10 @@ tasks:
       - echo "Compiling {{.HSP_SOURCE_NAME}}.hsp into {{.HSP_SOURCE_NAME}}.ax..."
       - DOCKER_BUILDKIT=0 docker build --platform linux/arm64 --no-cache --build-arg HSP_SOURCE_NAME={{.HSP_SOURCE_NAME}} -t {{.IMAGE_NAME}} .
 
-  install-rie:
-    desc: Install AWS Lambda Runtime Interface Emulator (RIE)
-    cmds:
-      - curl -Lo aws-lambda-rie https://github.com/aws/aws-lambda-runtime-interface-emulator/releases/latest/download/aws-lambda-rie
-      - chmod +x aws-lambda-rie
-
   run:
     desc: Run the Docker image with test input
     cmds:
-      - docker run --rm -p 9000:8080 -v $(pwd)/aws-lambda-rie:/aws-lambda-rie --entrypoint="/aws-lambda-rie" {{.IMAGE_NAME}} /var/runtime/bootstrap
+      - docker run --rm -p 9000:8080 {{.IMAGE_NAME}}
 
   clean:
     desc: Remove the Docker image
