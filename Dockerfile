@@ -12,7 +12,3 @@ FROM --platform=linux/arm64 ghcr.io/kijuky/hsp:3.7beta10-lambda AS runtime
 ARG HSP_SOURCE_NAME=sample
 ENV HSP_SOURCE_NAME=${HSP_SOURCE_NAME}
 COPY --from=build /hsp3.7beta10/${HSP_SOURCE_NAME}.ax /var/task/start.ax
-
-# デバッグ（lambdaに渡されたリクエストと、hspが出力したレスポンスを表示する）
-COPY bootstrap /var/runtime/bootstrap
-RUN chmod +x /var/runtime/bootstrap

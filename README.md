@@ -4,13 +4,13 @@
 
 go-taskをインストール
 
-```console
+```shell
 brew install go-task
 ```
 
 .envを作成
 
-```console
+```shell
 cp .env.example .env
 ```
 
@@ -18,7 +18,7 @@ cp .env.example .env
 
 ## 1. ビルド
 
-```console
+```shell
 task build
 ```
 
@@ -28,7 +28,7 @@ task build
 
 ### 2-1. 初回時
 
-```console
+```shell
 task build create-iam-role create-ecr-repo push-image deploy-lambda
 ```
 
@@ -36,7 +36,7 @@ task build create-iam-role create-ecr-repo push-image deploy-lambda
 
 ## 3. 実行
 
-```console
+```shell
 aws lambda invoke \
   --function-name ${AWS_LAMBDA_FUNCTION_NAME} \
   --invocation-type RequestResponse \
@@ -50,7 +50,7 @@ aws lambda invoke \
 
 いくつかのリソースは有料なので、使い終わったら破棄する。
 
-```console
+```shell
 task cleanup-all
 ```
 

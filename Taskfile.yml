@@ -17,12 +17,12 @@ tasks:
     desc: Build the HSP Lambda Docker image
     cmds:
       - echo "Compiling {{.HSP_SOURCE_NAME}}.hsp into {{.HSP_SOURCE_NAME}}.ax..."
-      - DOCKER_BUILDKIT=0 docker build --platform linux/arm64 --no-cache --build-arg HSP_SOURCE_NAME={{.HSP_SOURCE_NAME}} -t {{.IMAGE_NAME}} .
+      - DOCKER_BUILDKIT=0 docker build --platform linux/arm64 --build-arg HSP_SOURCE_NAME={{.HSP_SOURCE_NAME}} -t {{.IMAGE_NAME}} .
 
   run:
     desc: Run the Docker image with test input
     cmds:
-      - docker run --rm -p 9000:8080 {{.IMAGE_NAME}}
+      - docker run --rm -p 9000:8080 --memory=128m {{.IMAGE_NAME}}
 
   clean:
     desc: Remove the Docker image
