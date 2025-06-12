@@ -1,15 +1,15 @@
 #runtime "hsp3cl"
 
 ; 読み込み用のバッファと一時変数
-sdim json_str, 4096, 1
+sdim buf_str, 4096, 1
 sdim line_str, 1024, 1
 
 repeat
 	; 1行ずつ読み込む
 	input line_str, 1024, 1
 	if strsize = 1 : break ; EOFで終了
-	json_str += line_str + "\n"
+	buf_str += line_str + "\n"
 loop
 
-; 読み込んだJSON文字列をそのまま表示
-mes json_str
+; 読み込んだ文字列をそのまま表示
+mes buf_str
