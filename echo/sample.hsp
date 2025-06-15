@@ -1,0 +1,24 @@
+#runtime "hsp3cl"
+
+; HSP標準命令を扱う上で読みやすくするための定義
+#const INPUT_LF (1)
+#const INPUT_CRLF (2)
+#const INPUT_EOF (1)
+
+; アプリ特有の定義
+#const INPUT_RESP_BUFSIZE (4096)
+#const INPUT_LINE_BUFSIZE (1024)
+
+    ; 読み込み用のバッファと一時変数
+    sdim resp_str, INPUT_RESP_BUFSIZE
+    sdim line_str, INPUT_LINE_BUFSIZE
+
+    repeat
+        ; 1行ずつ読み込む
+        input line_str, INPUT_LINE_BUFSIZE, INPUT_LF
+        if strsize = INPUT_EOF : break ; EOFで終了
+        resp_str += line_str + "\n"
+    loop
+
+    ; 読み込んだ文字列をそのまま表示
+    mes resp_str

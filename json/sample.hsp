@@ -1,0 +1,71 @@
+#runtime "hsp3cl"
+
+; HSP標準命令を扱う上で読みやすくするための定義
+#const INPUT_LF (1)
+#const INPUT_CRLF (2)
+#const INPUT_EOF (1)
+#const VARTYPE_LABEL (1)
+#const VARTYPE_STR (2)
+#const VARTYPE_DOUBLE (3)
+#const VARTYPE_INT (4)
+#const VARTYPE_MODULE (5)
+#const VARTYPE_COMOBJ (6)
+
+; JSON-Cライブラリを使用するための定義
+#uselib "libjson-c.so.5"
+#cfunc json_tokener_parse "json_tokener_parse" str
+#cfunc json_object_object_get "json_object_object_get" int, str
+#cfunc json_object_get_string "json_object_get_string" int
+#cfunc json_object_get_string_len "json_object_get_string_len" int
+#cfunc json_object_new_object "json_object_new_object"
+#func json_object_object_add "json_object_object_add" int, str, int
+#cfunc json_object_new_string "json_object_new_string" str
+#cfunc json_object_to_json_string_length "json_object_to_json_string_length" int, int, var
+#const JSON_C_TO_STRING_PLAIN (0)
+#const JSON_C_TO_STRING_SPACED (1)
+#const JSON_C_TO_STRING_PRETTY (2)
+#func json_object_put "json_object_put" int
+
+; アプリ特有の定義
+#const INPUT_JSON_BUFSIZE (4096)
+#const INPUT_LINE_BUFSIZE (1024)
+
+    ; 標準入力を読み取る
+    sdim input_json, INPUT_JSON_BUFSIZE
+    sdim input_line, INPUT_LINE_BUFSIZE
+    repeat
+        ; 1行ずつ読み込む
+        input input_line, INPUT_LINE_BUFSIZE, INPUT_LF
+        if strsize = INPUT_EOF : break
+        input_json += input_line + "\n"
+    loop
+
+    ; JSON構造をパース
+    json_obj = json_tokener_parse(input_json)
+
+    ; キー "message" を取り出す
+    message_obj = json_object_object_get(json_obj, "message")
+
+    ; 文字列として取得
+    message_cstr = json_object_get_string(message_obj)
+    message_cstrlen = json_object_get_string_len(message_obj)
+    if message_cstrlen > 0 {
+        dupptr message, message_cstr, message_cstrlen, VARTYPE_STR
+    } else {
+        message = ""
+    }
+
+    ; "receive"キーに文字列を設定
+    result_obj = json_object_new_object()
+    json_object_object_add result_obj, "receive", json_object_new_string(message)
+
+    ; JSONオブジェクトを文字列に変換
+    result_cstr = json_object_to_json_string_length(result_obj, JSON_C_TO_STRING_PRETTY, result_cstrlen)
+    dupptr result, result_cstr, result_cstrlen, VARTYPE_STR
+
+    ; 表示（標準出力に）
+    mes result
+
+    ; JSONオブジェクトを解放
+    json_object_put result_obj
+    json_object_put json_obj
