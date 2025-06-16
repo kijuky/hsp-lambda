@@ -34,7 +34,6 @@
     sdim input_json, INPUT_JSON_BUFSIZE
     sdim input_line, INPUT_LINE_BUFSIZE
     repeat
-        ; 1行ずつ読み込む
         input input_line, INPUT_LINE_BUFSIZE, INPUT_LF
         if strsize = INPUT_EOF : break
         input_json += input_line + "\n"
